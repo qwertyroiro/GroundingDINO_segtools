@@ -24,18 +24,6 @@ import glob
 import os
 import subprocess
 
-import subprocess
-import sys
-
-def install_torch():
-    try:
-        import torch
-    except ImportError:
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "torch"])
-
-# Call the function to ensure torch is installed
-install_torch()
-
 import torch
 from setuptools import find_packages, setup
 from torch.utils.cpp_extension import CUDA_HOME, CppExtension, CUDAExtension
@@ -77,12 +65,20 @@ def get_extensions():
 
     sources = [main_source] + sources
 
+    # We need these variables to build with CUDA when we create the Docker image
+    # It solves https://github.com/IDEA-Research/Grounded-Segment-Anything/issues/53
+    # and https://github.com/IDEA-Research/Grounded-Segment-Anything/issues/84 when running
+    # inside a Docker container.
+    am_i_docker = False
+    use_cuda = True
+
     extension = CppExtension
 
     extra_compile_args = {"cxx": []}
     define_macros = []
 
-    if CUDA_HOME is not None and (torch.cuda.is_available() or "TORCH_CUDA_ARCH_LIST" in os.environ):
+    if torch.cuda.is_available() or \
+            (am_i_docker and use_cuda):
         print("Compiling with CUDA")
         extension = CUDAExtension
         sources += source_cuda
@@ -111,7 +107,6 @@ def get_extensions():
             extra_compile_args=extra_compile_args,
         )
     ]
-
     return ext_modules
 
 
